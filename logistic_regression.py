@@ -41,6 +41,29 @@ def neg_elbo(Lambda):
 
     return entropy - log_lik - log_prior
 
+
+class LogisticRegression(nn.Module):
+    """Bayesian Logistic Regression with VI"""
+    def __init__(self, d):
+        super(LogisticRegression, self).__init__()
+        self.d = d
+        self.Lambda = nn.Parameter(torch.randn((d, 2)))
+        self.mu = self.Lambda[:, 0]
+        self.sigma = F.softplus(self.Lambda[:, 1])
+        self.z = self.Lambda[:, 0]
+
+    def forward(self, input):
+        self.mu = self.Lambda[:, 0]
+        self.sigma = F.softplus(self.Lambda[:, 1])
+
+        epsilon = torch.randn((self.mu.size()))
+        self.z = self.mu + epsilon * self.sigma
+
+        logits = input.mm(z.view(self.d, 1))
+
+        return z
+
+
 for epoch in range(EPOCHS):
     # estimate (negative) ELBO
     elbo = neg_elbo(Lambda)

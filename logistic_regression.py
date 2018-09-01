@@ -1,5 +1,5 @@
 import torch
-from torch import optim
+from torch import optim, nn
 import torch.nn.functional as F
 from torch.distributions.bernoulli import Bernoulli
 from torch.distributions.normal import Normal
@@ -24,23 +24,6 @@ def sample_q_normal(Lambda):
 
     return z, mu, sigma
 
-# variables for coefficients
-Lambda = torch.randn((d, 2), requires_grad=True)
-
-# gradient descent optimizer
-opt = optim.SGD([Lambda], lr=1e-4)
-
-def neg_elbo(Lambda):
-    # draw value from q
-    z, mu, sigma = sample_q_normal(Lambda)
-
-    # estimate ELBO
-    log_lik = Bernoulli(logits=X.mm(z.view(d, 1))).log_prob(y).sum()
-    log_prior = prior.log_prob(z).sum()
-    entropy = Normal(mu, sigma).log_prob(z).sum()
-
-    return entropy - log_lik - log_prior
-
 
 class LogisticRegression(nn.Module):
     """Bayesian Logistic Regression with VI"""
@@ -59,19 +42,37 @@ class LogisticRegression(nn.Module):
         epsilon = torch.randn((self.mu.size()))
         self.z = self.mu + epsilon * self.sigma
 
-        logits = input.mm(z.view(self.d, 1))
+        logits = input.mm(self.z.view(self.d, 1))
 
-        return z
+        return logits
 
+
+class Elbo(nn.Module):
+    def __init__(self, model):
+        super(Elbo, self).__init__()
+        self.model = model
+
+    def forward(self, yhat, y):
+        z, mu, sigma = self.model.z, self.model.mu, self.model.sigma
+
+        log_lik = Bernoulli(logits=yhat).log_prob(y).sum()
+        log_prior = prior.log_prob(z).sum()
+        entropy = Normal(mu, sigma).log_prob(z).sum()
+
+        return entropy - log_lik - log_prior
+
+
+model = LogisticRegression(d)
+criterion = Elbo(model)
+opt = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 
 for epoch in range(EPOCHS):
-    # estimate (negative) ELBO
-    elbo = neg_elbo(Lambda)
-
-    if epoch % 10 == 0:
-        print(epoch, elbo.item())
-
     opt.zero_grad()
-    elbo.backward()
+    output = model(X)
+    loss = criterion(output, y)
+    loss.backward()
     opt.step()
+
+    if epoch % 1 == 0:
+        print(epoch, loss.item())
 

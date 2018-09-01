@@ -84,7 +84,7 @@ for epoch in range(EPOCHS):
     loss.backward()
     opt.step()
 
-    if epoch % 1 == 0:
+    if epoch % 10 == 0:
         print(epoch, loss.item())
 
 model.mu - beta_true

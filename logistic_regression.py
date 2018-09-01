@@ -36,6 +36,7 @@ class LogisticRegression(nn.Module):
         self.z = self.Lambda[:, 0]
 
     def forward(self, input):
+        self.truncate()
         self.mu = self.Lambda[:, 0]
         self.sigma = F.softplus(self.Lambda[:, 1])
 
@@ -45,6 +46,11 @@ class LogisticRegression(nn.Module):
         logits = input.mm(self.z.view(self.d, 1))
 
         return logits
+
+    def truncate(self):
+        with torch.no_grad():
+            small = self.Lambda[:, 1] < torch.tensor(-11.5)
+            self.Lambda[small, 1] = torch.tensor(-11.5)
 
 
 class Elbo(nn.Module):
@@ -64,7 +70,7 @@ class Elbo(nn.Module):
 
 model = LogisticRegression(d)
 criterion = Elbo(model)
-opt = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+opt = optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
 
 for epoch in range(EPOCHS):
     opt.zero_grad()

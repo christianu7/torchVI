@@ -7,7 +7,7 @@ from torch.distributions.normal import Normal
 # constants
 n, d = 100000, 100
 prior = Normal(0, 1) # prior on logistic regression parameters
-EPOCHS = 100 
+EPOCHS = 200 
 
 # generate data
 from simulate_data import logistic_regr
@@ -52,6 +52,15 @@ class LogisticRegression(nn.Module):
             small = self.Lambda[:, 1] < torch.tensor(-11.5)
             self.Lambda[small, 1] = torch.tensor(-11.5)
 
+    def log_lik(self, yhat, y):
+        return Bernoulli(logits=yhat).log_prob(y).sum()
+
+    def log_prior(self):
+        return prior.log_prob(self.z).sum()
+
+    def entropy(self):
+        return Normal(self.mu, self.sigma).log_prob(self.z).sum()
+
 
 class Elbo(nn.Module):
     def __init__(self, model):
@@ -59,13 +68,9 @@ class Elbo(nn.Module):
         self.model = model
 
     def forward(self, yhat, y):
-        z, mu, sigma = self.model.z, self.model.mu, self.model.sigma
-
-        log_lik = Bernoulli(logits=yhat).log_prob(y).sum()
-        log_prior = prior.log_prob(z).sum()
-        entropy = Normal(mu, sigma).log_prob(z).sum()
-
-        return entropy - log_lik - log_prior
+        return model.entropy() - \
+               model.log_lik(yhat, y) - \
+               model.log_prior()
 
 
 model = LogisticRegression(d)
@@ -82,3 +87,4 @@ for epoch in range(EPOCHS):
     if epoch % 1 == 0:
         print(epoch, loss.item())
 
+model.mu - beta_true
